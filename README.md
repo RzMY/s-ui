@@ -59,7 +59,7 @@
 
 ### Linux/macOS
 ```sh
-bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/RzMY/s-ui/main/install.sh)
 ```
 
 #### Installer language
@@ -67,7 +67,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/master/install.s
 The installer is available in the same six languages as the panel: `en` (default), `fa`, `ru`, `vi`, `zhcn`, `zhtw`. Choose one with the `SUI_LANG` environment variable (when unset, your system `$LANG` is used as a hint):
 
 ```sh
-SUI_LANG=fa bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/master/install.sh)
+SUI_LANG=fa bash <(curl -Ls https://raw.githubusercontent.com/RzMY/s-ui/main/install.sh)
 ```
 
 ### Alpine Linux
@@ -75,7 +75,7 @@ Alpine uses `apk` and OpenRC instead of `apt`/systemd. The install script detect
 
 ```sh
 apk add bash
-bash <(curl -Ls https://raw.githubusercontent.com/alireza0/s-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/RzMY/s-ui/main/install.sh)
 ```
 
 Manage the service with OpenRC: `rc-service s-ui start|stop|restart` and `rc-update add s-ui default`.

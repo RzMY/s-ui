@@ -50,6 +50,8 @@ d en os_fail "Failed to check the system OS, please contact the author!"
 d en os_release "The OS release is:"
 d en unsupported_arch "Unsupported CPU architecture!"
 d en installing_base "Installing required packages..."
+d en install_base_fail "Failed to install required packages"
+d en extract_fail "Failed to extract s-ui archive"
 d en migrating "Migration..."
 d en finished_modify "Install/update finished! For security it's recommended to modify panel settings"
 d en ask_modify "Do you want to continue with the modification [y/n]? "
@@ -291,26 +293,38 @@ arch() {
 echo "arch: $(arch)"
 
 install_base() {
+    local missing=()
+    local command_name
+
+    for command_name in wget curl tar; do
+        command -v "$command_name" >/dev/null 2>&1 || missing+=("$command_name")
+    done
+    if [[ "${release}" == "alpine" ]]; then
+        command -v bash >/dev/null 2>&1 || missing+=(bash)
+        command -v rc-service >/dev/null 2>&1 || missing+=(openrc)
+    fi
+    [[ ${#missing[@]} -eq 0 ]] && return 0
+
     echo -e "${yellow}$(t installing_base)${plain}"
     case "${release}" in
     centos | almalinux | rocky | oracle)
-        yum -y update && yum install -y -q wget curl tar
+        yum install -y -q "${missing[@]}"
         ;;
     fedora)
-        dnf -y update && dnf install -y -q wget curl tar
+        dnf install -y -q "${missing[@]}"
         ;;
     arch | manjaro | parch)
-        pacman -Syu && pacman -Syu --noconfirm wget curl tar
+        pacman -Sy --noconfirm "${missing[@]}"
         ;;
     opensuse-tumbleweed)
-        zypper refresh && zypper -q install -y wget curl tar
+        zypper refresh && zypper -q install -y "${missing[@]}"
         ;;
     alpine)
         # Alpine uses apk and OpenRC; bash is needed for the s-ui menu script.
-        apk update && apk add --no-cache wget curl tar bash openrc
+        apk update && apk add --no-cache "${missing[@]}"
         ;;
     *)
-        apt-get update && apt-get install -y -q wget curl tar
+        apt-get update && apt-get install -y -q "${missing[@]}"
         ;;
     esac
 }
@@ -415,7 +429,12 @@ prepare_services() {
 }
 
 install_s-ui() {
-    cd /tmp/
+    local archive_path
+    archive_path=$(mktemp "/usr/local/.s-ui-install.XXXXXX.tar.gz") || {
+        echo -e "${red}$(t download_fail)${plain}"
+        exit 1
+    }
+    trap "rm -f '$archive_path'" EXIT
 
     if [ $# == 0 ]; then
         last_version=$(curl -Ls "https://api.github.com/repos/alireza0/s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -424,8 +443,7 @@ install_s-ui() {
             exit 1
         fi
         printf "${green}$(t got_version)${plain}\n" "${last_version}"
-        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz https://github.com/alireza0/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz
-        if [[ $? -ne 0 ]]; then
+        if ! wget -N --no-check-certificate -O "$archive_path" "https://github.com/alireza0/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz"; then
             echo -e "${red}$(t download_fail)${plain}"
             exit 1
         fi
@@ -433,8 +451,7 @@ install_s-ui() {
         last_version=$1
         url="https://github.com/alireza0/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz"
         printf "$(t begin_install)\n" "$1"
-        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
+        if ! wget -N --no-check-certificate -O "$archive_path" "$url"; then
             printf "${red}$(t download_ver_fail)${plain}\n" "$1"
             exit 1
         fi
@@ -448,16 +465,18 @@ install_s-ui() {
         fi
     fi
 
-    tar zxvf s-ui-linux-$(arch).tar.gz
-    rm s-ui-linux-$(arch).tar.gz -f
-
-    chmod +x s-ui/sui s-ui/s-ui.sh
-    cp s-ui/s-ui.sh /usr/bin/s-ui
-    cp -rf s-ui /usr/local/
-    if [[ "${init_system}" == "systemd" ]]; then
-        cp -f s-ui/*.service /etc/systemd/system/
+    if ! tar zxf "$archive_path" -C /usr/local; then
+        echo -e "${red}$(t extract_fail)${plain}"
+        exit 1
     fi
-    rm -rf s-ui
+    rm -f "$archive_path"
+    trap - EXIT
+
+    chmod +x /usr/local/s-ui/sui /usr/local/s-ui/s-ui.sh
+    cp -f /usr/local/s-ui/s-ui.sh /usr/bin/s-ui
+    if [[ "${init_system}" == "systemd" ]]; then
+        cp -f /usr/local/s-ui/*.service /etc/systemd/system/
+    fi
 
     config_after_install
     prepare_services
@@ -479,5 +498,8 @@ install_s-ui() {
 }
 
 echo -e "${green}$(t executing)${plain}"
-install_base
+if ! install_base; then
+    echo -e "${red}$(t install_base_fail)${plain}"
+    exit 1
+fi
 install_s-ui $1
