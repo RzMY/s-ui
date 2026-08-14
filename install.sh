@@ -430,7 +430,7 @@ prepare_services() {
 
 install_s-ui() {
     local archive_path
-    archive_path=$(mktemp "/usr/local/.s-ui-install.XXXXXX.tar.gz") || {
+    archive_path=$(mktemp "/usr/local/.s-ui-install.XXXXXX") || {
         echo -e "${red}$(t download_fail)${plain}"
         exit 1
     }
